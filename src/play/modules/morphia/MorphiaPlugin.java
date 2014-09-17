@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
+import com.mongodb.MongoOptions;
 import org.bson.types.ObjectId;
 
 import play.Logger;
@@ -161,6 +162,9 @@ public class MorphiaPlugin extends PlayPlugin {
     }
 
     public static GridFS gridFs() {
+        if (gridfs == null) {
+            throw new IllegalStateException("GridFS is currently not configured");
+        }
         return gridfs;
     }
 
@@ -285,14 +289,15 @@ public class MorphiaPlugin extends PlayPlugin {
         if (len != pa.length)
             throw new ConfigurationException(
                     "host and ports number does not match");
+        List<ServerAddress> addrs = new ArrayList<ServerAddress>(ha.length);
         if (1 == len) {
             try {
-                return new Mongo(ha[0], Integer.parseInt(pa[0]));
+                addrs.add(new ServerAddress(ha[0], Integer.parseInt(pa[0])));
+                return connect_(addrs);
             } catch (Exception e) {
                 throw new ConfigurationException(String.format("Cannot connect to mongodb at %s:%s", host, port));
             }
         }
-        List<ServerAddress> addrs = new ArrayList<ServerAddress>(ha.length);
         for (int i = 0; i < len; ++i) {
             try {
                 addrs.add(new ServerAddress(ha[i], Integer.parseInt(pa[i])));
@@ -303,7 +308,7 @@ public class MorphiaPlugin extends PlayPlugin {
         if (addrs.isEmpty()) {
             throw new ConfigurationException("Cannot connect to mongodb: no replica can be connected");
         }
-        return new Mongo(addrs);
+        return connect_(addrs);
     }
 
     /*
@@ -330,7 +335,28 @@ public class MorphiaPlugin extends PlayPlugin {
         if (addrs.isEmpty()) {
             throw new ConfigurationException("Cannot connect to mongodb: no replica can be connected");
         }
-        return new Mongo(addrs);
+        return connect_(addrs);
+    }
+
+    private static final Mongo connect_(List<ServerAddress> addrs) {
+        return new Mongo(addrs, configureMongoOptions());
+    }
+
+    private static MongoOptions configureMongoOptions() {
+        final MongoOptions options = new MongoOptions();
+
+        for (ApplicationClass clazz : Play.classes.getAssignableClasses(MongoConfigurator.class)) {
+            try {
+                final MongoConfigurator configurator = (MongoConfigurator) clazz.javaClass.newInstance();
+                configurator.configureOptions(options);
+            } catch (InstantiationException e) {
+                throw new ConfigurationException(String.format("failed to create configurator: %s", clazz.name));
+            } catch (IllegalAccessException e) {
+                throw new ConfigurationException(String.format("failed to create configurator: %s", clazz.name));
+            }
+        }
+
+        return options;
     }
 
     @Override
@@ -399,7 +425,10 @@ public class MorphiaPlugin extends PlayPlugin {
         dataStores_.put(dbName, ds_);
 
         String uploadCollection = c.getProperty("morphia.collection.upload", "uploads");
-        gridfs = new GridFS(MorphiaPlugin.ds().getDB(), uploadCollection);
+
+        if (getBooleanProperty("gridfs.enabled")) {
+            gridfs = new GridFS(MorphiaPlugin.ds().getDB(), uploadCollection);
+        }
         
         morphia_.getMapper().addInterceptor(new AbstractEntityInterceptor(){
             @Override
@@ -419,6 +448,11 @@ public class MorphiaPlugin extends PlayPlugin {
                 }
             }
         });
+    }
+
+    public static boolean getBooleanProperty(String name) {
+        final String value = Play.configuration.getProperty(PREFIX + name);
+        return value != null && Boolean.parseBoolean(value);
     }
     
     private static void initIdType_() {

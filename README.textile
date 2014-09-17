@@ -153,3 +153,10 @@ com.mongodb.Mongo mongo = MorphiaPlugin.ds().getMongo();
 p(note). **Give it a try**
 
 "Install the PlayMorphia plugin":http://www.playframework.org/modules/morphia and start developing your application with MongoDB!
+
+** RTR Specific instructions **
+h1. To build:
+play build-module
+
+h1. To deploy:
+mvn deploy:deploy-file
