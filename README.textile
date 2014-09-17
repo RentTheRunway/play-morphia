@@ -159,4 +159,5 @@ h1. To build:
 play build-module
 
 h1. To deploy:
+Ensure that the given artifact doesn't already exist in nexus.  If it does, delete it first.
 mvn deploy:deploy-file
