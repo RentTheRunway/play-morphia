@@ -3,7 +3,7 @@
 
   <groupId>com.rtr.play</groupId>
   <artifactId>morphia</artifactId>
-  <version>1.2.4c-ext</version>
+  <version>1.2.5c-ext</version>
 
   <build>
     <plugins>

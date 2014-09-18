@@ -1,7 +1,7 @@
 package play.modules.morphia;
 
-import com.mongodb.MongoOptions;
+import com.mongodb.MongoClientOptions;
 
 public interface MongoConfigurator {
-    void configureOptions(MongoOptions options);
+    void configureOptions(MongoClientOptions.Builder options);
 }

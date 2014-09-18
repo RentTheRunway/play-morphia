@@ -20,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoOptions;
 import org.bson.types.ObjectId;
 
@@ -339,11 +341,11 @@ public class MorphiaPlugin extends PlayPlugin {
     }
 
     private static final Mongo connect_(List<ServerAddress> addrs) {
-        return new Mongo(addrs, configureMongoOptions());
+        return new MongoClient(addrs, configureMongoOptions());
     }
 
-    private static MongoOptions configureMongoOptions() {
-        final MongoOptions options = new MongoOptions();
+    private static MongoClientOptions configureMongoOptions() {
+        final MongoClientOptions.Builder options = MongoClientOptions.builder();
 
         for (ApplicationClass clazz : Play.classes.getAssignableClasses(MongoConfigurator.class)) {
             try {
@@ -356,7 +358,7 @@ public class MorphiaPlugin extends PlayPlugin {
             }
         }
 
-        return options;
+        return options.build();
     }
 
     @Override
