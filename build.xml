@@ -17,7 +17,7 @@
 
     <target name="build">
         <mkdir dir="tmp/classes" />
-        <javac srcdir="src" destdir="tmp/classes" target="1.6" debug="true" debuglevel="lines,vars,source">
+        <javac srcdir="src" destdir="tmp/classes" target="1.6" source="1.6" debug="true" debuglevel="lines,vars,source">
             <classpath refid="project.classpath" />
         </javac>
         <copy todir="tmp/classes">

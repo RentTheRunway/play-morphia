@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,8 +21,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
+import com.mongodb.DBTCPConnector;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoCredential;
 import com.mongodb.MongoOptions;
 import org.bson.types.ObjectId;
 
@@ -60,6 +63,8 @@ import com.mongodb.MongoException;
 import com.mongodb.ServerAddress;
 import com.mongodb.WriteConcern;
 import com.mongodb.gridfs.GridFS;
+
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * The plugin for the Morphia module.
@@ -341,11 +346,80 @@ public class MorphiaPlugin extends PlayPlugin {
     }
 
     private static final Mongo connect_(List<ServerAddress> addrs) {
-        return new MongoClient(addrs, configureMongoOptions());
+        return new MongoClient(addrs, configureMongoCredentials(PREFIX), configureMongoOptions(PREFIX));
     }
 
-    private static MongoClientOptions configureMongoOptions() {
+    private static Properties configuration() {
+        return configuration(PREFIX);
+    }
+
+    private static Properties configuration(String prefix) {
+        final Properties configuration = new Properties();
+        final Enumeration<?> names = Play.configuration.propertyNames();
+
+        while (names.hasMoreElements()) {
+            final String name = (String) names.nextElement();
+
+            if (!name.startsWith(prefix)) {
+                continue;
+            }
+
+            configuration.setProperty(name.substring(prefix.length()), Play.configuration.getProperty(name));
+        }
+
+        return configuration;
+    }
+
+    public static List<MongoCredential> configureMongoCredentials(String prefix) {
+        return configureMongoCredentials(configuration(prefix));
+    }
+
+    private static List<MongoCredential> configureMongoCredentials(Properties conf) {
+        String dbName = conf.getProperty("name");
+        if (null == dbName) {
+            warn("mongodb name not configured! using [test] db");
+            dbName = "test";
+        }
+
+        if (conf.containsKey("username") && conf.containsKey("password")) {
+            final String username = conf.getProperty("username");
+            final char[] password = conf.getProperty("password").toCharArray();
+            final String mechanism = conf.getProperty("mechanism");
+            final String authDatabase = conf.getProperty("authDatabase");
+            final String source = authDatabase != null ? authDatabase : dbName;
+
+            if (MongoCredential.SCRAM_SHA_1_MECHANISM.equals(mechanism)) {
+                return Collections.singletonList(
+                    MongoCredential.createScramSha1Credential(username, source, password)
+                );
+            } else {
+                if (mechanism != null && !MongoCredential.MONGODB_CR_MECHANISM.equals(mechanism)) {
+                    warn(
+                        "Unsupported authentication mechanism: %1$s, defaulting to %2$s",
+                        mechanism,
+                        MongoCredential.MONGODB_CR_MECHANISM
+                    );
+                }
+
+                return Collections.singletonList(
+                    MongoCredential.createMongoCRCredential(username, source, password)
+                );
+            }
+        }
+
+        return Collections.emptyList();
+    }
+
+    private static MongoClientOptions configureMongoOptions(Properties conf) {
         final MongoClientOptions.Builder options = MongoClientOptions.builder();
+
+        if (Boolean.valueOf(conf.getProperty("ssl"))) {
+            options.socketFactory(SSLSocketFactory.getDefault());
+        }
+
+        if (conf.containsKey("replicaSetName")) {
+            options.requiredReplicaSetName(conf.getProperty("replicaSetName"));
+        }
 
         for (ApplicationClass clazz : Play.classes.getAssignableClasses(MongoConfigurator.class)) {
             try {
@@ -359,6 +433,10 @@ public class MorphiaPlugin extends PlayPlugin {
         }
 
         return options.build();
+    }
+
+    public static MongoClientOptions configureMongoOptions(String prefix) {
+        return configureMongoOptions(configuration(prefix));
     }
 
     @Override
@@ -393,14 +471,6 @@ public class MorphiaPlugin extends PlayPlugin {
         if (null == dbName) {
             warn("mongodb name not configured! using [test] db");
             dbName = "test";
-        }
-        DB db = mongo_.getDB(dbName);
-        if (c.containsKey(PREFIX + "username") && c.containsKey(PREFIX + "password")) {
-            String username = c.getProperty(PREFIX + "username");
-            String password = c.getProperty(PREFIX + "password");
-            if (!db.isAuthenticated() && !db.authenticate(username, password.toCharArray())) {
-                throw new RuntimeException("MongoDB authentication failed: " + dbName);
-            }
         }
 
         String loggerClass = c.getProperty("morphia.logger");

@@ -1,4 +1,7 @@
-self: com.rtr.play -> morphia 1.2.5c-ext
+self: com.rtr.play -> morphia 1.2.6c-ext
 
 require:
-    - play 1.2
+    - play 1.2.4
+    - org.mongodb -> mongo-java-driver 2.14.1
+    - com.google.code.morphia -> morphia 0.101.0
+
