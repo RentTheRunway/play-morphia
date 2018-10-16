@@ -1,8 +1,12 @@
-bin
+bin/
 build.bat
 .classpath
 .project
 .eclipse
 lib/play-morphia.jar
-dist
-documentation
+dist/
+documentation/
+
+# IntelliJ
+.idea
+*.iml
